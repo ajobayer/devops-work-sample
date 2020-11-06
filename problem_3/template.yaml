@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: 'Performs a periodic check of the given site, erroring out on status failure.'
+Resources:
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "website-url-test-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:*
+            Resource: arn:aws:logs:*:*:*
+
+  LambdaFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      CodeUri: src/
+      Description: >-
+        Performs a periodic check of the given site, erroring out on test
+        failure.
+      MemorySize: 128
+      Timeout: 10
+      Role: !GetAtt LambdaRole.Arn
+      Environment:
+        Variables:
+          expected: 'ABC'
+          site: 'https://www.abc.net.au/'
+          WEBSITE_LISTS: website-lists.json
+      Tags:
+        'problem': sam-website-url-test-lambda
+
+  ScheduleRule:
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Name: "sam-website-url-test-lambda"
+      Description: "Run every 30 seceonds"
+      ScheduleExpression: 'cron(0/1 * * * ? *)'
+      State: ENABLED
+      Targets:
+      - Arn: !GetAtt LambdaFunction.Arn
+        Id: "LATEST"
+
+
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref "LambdaFunction"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt ScheduleRule.Arn
