@@ -1,6 +1,7 @@
 # iag-devops-work-problem3
 
-Website status check from: src/website-lists.json 
+Website status check from: src/website-lists.json;
+Adding more site into website-lists.json (follow json syntax)
 
 ## 1. Create bucket to upload sam package file:
 $ aws s3 mb  s3://website-statuscheck-2c5ade5af868-ap-southeast-2 --region ap-southeast-2

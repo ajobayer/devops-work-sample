@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: >-
+  Implement a script which caters for the scenario: Whenever a customer uploads a pdf file to an S3 bucket, the script should:
+    a) Validate the file extension to be pdf only
+    b) Rename the file by appending a timestamp to the name
+    c) Move this file to a different folder in the same bucket
+Resources:
+
+  SrcBucketName:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: sam-lambda-2c5ade5af868-ap-southeast-2
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Function: !GetAtt LambdaFunction.Arn
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: "s3-bucket-pdf-extension-check-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:*
+            Resource: arn:aws:logs:*:*:*
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            Resource: !Sub arn:aws:s3:::${SrcBucketName}/*
+          - Effect: Allow
+            Action:
+            - s3:PutObject
+            Resource: !Sub arn:aws:s3:::${SrcBucketName}/*
+  LambdaFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      CodeUri: src/
+      Description: >-
+        s3-bucket-upload-pdf-extension-check
+      MemorySize: 128
+      Timeout: 10
+      Role: !GetAtt LambdaRole.Arn
+      Events:
+        CreateThumbnailEvent:
+          Type: S3
+          Properties:
+            Bucket: !Ref SrcBucketName
+            Events: s3:ObjectCreated:*
+      Environment:
+        Variables:
+          expected: 'ABC'
+          site: 'https://www.abc.net.au/'
+          WEBSITE_LISTS: website-lists.json
+      Tags:
+        'problem': s3-bucket-pdf-extension-check
+
+  S3InvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref "LambdaFunction"
+      Action: "lambda:InvokeFunction"
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${SrcBucketName}
